@@ -1,4 +1,6 @@
-# Project 4
+![BuildStatus](https://github.com/clairedubin/HW5-NW/actions/workflows/test.yml/badge.svg)
+
+# HW 5
 Needleman Wunsch Algorithm
 
 

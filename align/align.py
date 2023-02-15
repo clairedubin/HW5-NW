@@ -34,8 +34,9 @@ class NeedlemanWunsch:
 
         # Init matrices for backtrace procedure
         self._back = None
-        self._back_A = None
-        self._back_B = None
+        # Didn't use these
+        # self._back_A = None
+        # self._back_B = None
 
         # Init alignment_score
         self.alignment_score = 0
@@ -128,13 +129,57 @@ class NeedlemanWunsch:
         
         # TODO: Initialize matrix private attributes for use in alignment
         # create matrices for alignment scores, gaps, and backtracing
-        pass
 
-        
+        #initialize matrices
+        self._matrix_dims = (len(self._seqA)+1, len(self._seqB)+1)
+        self._align_matrix = np.full(self._matrix_dims, -np.inf)
+        self._gapA_matrix = np.full(self._matrix_dims, -np.inf)
+        self._gapB_matrix = np.full(self._matrix_dims, -np.inf)
+        self._back = np.full(self._matrix_dims, -np.inf)
+
+        self._align_matrix[0,0] = 0
+        self._back[0,0] = 0
+        #top row can move left (coded as 1)
+        self._back[1:,0] = 1
+        #left column can move up (coded as 2)
+        self._back[0,1:] = 2 
+
+        for i in range(self._matrix_dims[0]): 
+            if i == 0:
+                self._gapA_matrix[i, 0] = self.gap_open
+            else:
+                self._gapA_matrix[i, 0] = self.gap_extend+self._gapA_matrix[i-1,0]
+            
+        for j in range(self._matrix_dims[1]):   
+            if j == 0:
+                self._gapB_matrix[0, j] = self.gap_open
+            else:
+                self._gapB_matrix[0, j] = self.gap_extend+self._gapB_matrix[0,j-1]   
+                        
+
         # TODO: Implement global alignment here
-        pass      		
+        
+        for i in range(1, self._matrix_dims[0]):
+            for j in range(1, self._matrix_dims[1]):
+                
+                #calculate scores for moves
+                subst_score = self.sub_dict[(self._seqA[i-1], self._seqB[j-1])]
+                options = [subst_score + self._align_matrix[i-1, j-1]]
+                options += [subst_score + self._gapA_matrix[i-1,j-1]]
+                options += [subst_score + self._gapB_matrix[i-1,j-1]]
+                self._align_matrix[i,j] = max(options)
+                
+                self._gapA_matrix[i, j] = max(self._align_matrix[i-1,j]+self.gap_open+self.gap_extend, 
+                                        self._gapA_matrix[i-1, j]+self.gap_extend)
+                self._gapB_matrix[i, j] = max(self._align_matrix[i,j-1]+self.gap_open+self.gap_extend, 
+                                        self._gapB_matrix[i, j-1]+self.gap_extend)
+                options = [self._align_matrix[i,j],self._gapB_matrix[i, j],self._gapA_matrix[i, j],]
+                
+                #add best move to traceback matrix
+                self._back[i,j] = options.index(max(options))    
         		    
         return self._backtrace()
+
 
     def _backtrace(self) -> Tuple[float, str, str]:
         """
@@ -150,10 +195,55 @@ class NeedlemanWunsch:
          	(alignment score, seqA alignment, seqB alignment) : Tuple[float, str, str]
          		the score and corresponding strings for the alignment of seqA and seqB
         """
-        pass
+        self.seqA_align = ''
+        self.seqB_align = ''
+
+        _seqA_pos = self._matrix_dims[0]-1
+        _seqB_pos = self._matrix_dims[1]-1
+
+        #extract alignment score from bottom right cell
+        self.alignment_score = self._align_matrix[_seqA_pos, _seqB_pos]
+
+        while True:
+
+            _seqA_prev_pos = _seqA_pos
+            _seqB_prev_pos = _seqB_pos
+
+            _seqA_pos, _seqB_pos = self._get_next_cell(_seqA_prev_pos, _seqB_prev_pos)
+
+            if _seqA_pos == _seqA_prev_pos:
+                self.seqA_align += '-'
+            else:
+                self.seqA_align += self._seqA[_seqA_pos]
+            
+            if _seqB_pos == _seqB_prev_pos:
+                self.seqB_align += '-'
+            else:
+                self.seqB_align += self._seqB[_seqB_pos]
+                
+            if _seqA_pos == 0 and _seqB_pos == 0:
+                break
+
+        self.seqA_align = self.seqA_align[::-1]
+        self.seqB_align = self.seqB_align[::-1]
 
         return (self.alignment_score, self.seqA_align, self.seqB_align)
 
+    def _get_next_cell(self, i:int,j:int):
+        
+        """Helper for _backtrace: Returns coordinates of next cell to go to in 
+        traceback according to move encoded in traceback matrix"""
+        
+        move = self._back[i,j]
+        #move diagonally
+        if move == 0:
+            return (i-1, j-1)
+        #move left
+        if move == 1:
+            return (i, j-1)
+        #move up
+        if move == 2:
+            return (i-1, j)
 
 def read_fasta(fasta_file: str) -> Tuple[str, str]:
     """
